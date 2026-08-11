@@ -5,7 +5,7 @@ on:
     branches:
       - main
   workflow_dispatch:
-  issues:
+  pull_request:
     types:
       - opened
 
@@ -14,7 +14,7 @@ env:
 
 jobs:
   release:
-    if: github.event_name != 'issues' || github.event.issue.title == 'trigger-brat-release'
+    if: github.event_name != 'pull_request' || github.event.pull_request.title == 'trigger-brat-release'
     runs-on: ubuntu-latest
     permissions:
       contents: write
