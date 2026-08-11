@@ -46,6 +46,8 @@ export class CodeBlockProcessor {
       )
       .join("\n");
 
+    source = this.normalizeShareSheetFields(source);
+
     try {
       yaml = parseYaml(source) as Partial<LinkMetadata>;
     } catch (error) {
@@ -72,6 +74,57 @@ export class CodeBlockProcessor {
       duration: yaml.duration,
       indent,
     };
+  }
+
+  private normalizeShareSheetFields(source: string): string {
+    const replaceField = (
+      input: string,
+      key: string,
+      startMarker: string,
+      endMarker: string
+    ): string => {
+      const startToken = `${key}: ${startMarker}`;
+      const startIndex = input.indexOf(startToken);
+
+      if (startIndex === -1) return input;
+
+      const valueStart = startIndex + startToken.length;
+      const endIndex = input.indexOf(endMarker, valueStart);
+
+      if (endIndex === -1) return input;
+
+      const value = input
+        .slice(valueStart, endIndex)
+        .replace(/\r\n|\r|\n/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .trim();
+
+      // JSON string syntax is valid YAML double-quoted scalar syntax for
+      // the characters produced here, and safely escapes quotes/backslashes.
+      const safeValue = JSON.stringify(value);
+
+      return (
+        input.slice(0, startIndex) +
+        `${key}: ${safeValue}` +
+        input.slice(endIndex + endMarker.length)
+      );
+    };
+
+    source = replaceField(
+      source,
+      "title",
+      "__ACL_TITLE_START__",
+      "__ACL_TITLE_END__"
+    );
+
+    source = replaceField(
+      source,
+      "description",
+      "__ACL_DESCRIPTION_START__",
+      "__ACL_DESCRIPTION_END__"
+    );
+
+    return source;
   }
 
   private genErrorEl(errorMsg: string, parentEl: HTMLElement): void {
