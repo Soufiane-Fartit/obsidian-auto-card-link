@@ -8,6 +8,7 @@ on:
   pull_request:
     types:
       - opened
+      - reopened
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -36,7 +37,9 @@ jobs:
 
       - name: Read plugin version
         id: version
-        run: echo "version=$(node -p \"require('./manifest.json').version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION=$(node -p "require('./manifest.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Check whether release already exists
         id: release
