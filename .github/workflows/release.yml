@@ -2,19 +2,18 @@ name: Release Obsidian plugin
 
 on:
   push:
-    tags:
-      - "*"
+    branches:
+      - main
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # needed to create the GitHub release
-      id-token: write # needed to request the OIDC token for attestation
-      attestations: write # needed to write the attestation to the repo
+      contents: write
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -23,31 +22,40 @@ jobs:
         uses: actions/setup-node@v4.4.0
         with:
           node-version: "22"
+          cache: npm
 
-      - name: Build
-        run: |
-          npm install
-          npm run build
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: |
-            main.js
-            styles.css
-            manifest.json
+      - name: Build plugin
+        run: npm run build
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2.3.2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          draft: true
-          prerelease: false
-          fail_on_unmatched_files: false
-          files: |
-            main.js
-            manifest.json
-            styles.css
+      - name: Read plugin version
+        id: version
+        run: echo "version=$(node -p \"require('./manifest.json').version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether release already exists
+        id: release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish BRAT-compatible release
+        if: steps.release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$VERSION" \
+            main.js \
+            manifest.json \
+            styles.css \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --notes "Auto-built Obsidian plugin release for BRAT."
